@@ -1,0 +1,26 @@
+version: 2.1
+jobs:
+  build:
+    working_directory: /console
+    docker:
+      - image: centos:7
+        environment:
+          PATH=$PATH:/usr/bin
+    steps:
+      - run:
+          name: Setup dependencies
+          command: |
+            cd /etc/yum.repos.d/
+            sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+            sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+            yum update -y
+            yum install -y git openssl-devel openssl java java-devel
+      - checkout
+      - run:
+          name: Compile
+          command: |
+            bash gradlew build
+      - run:
+          name: Integration Test
+          command: |
+            bash .ci/ci_check.sh

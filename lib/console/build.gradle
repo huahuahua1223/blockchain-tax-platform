@@ -1,0 +1,137 @@
+plugins {
+    id 'com.github.sherter.google-java-format' version '0.8'
+    id 'java-library'
+    id 'java'
+}
+apply plugin: 'maven-publish'
+apply plugin: 'java'
+apply plugin: 'eclipse'
+
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+[compileJava, compileTestJava, javadoc]*.options*.encoding = 'UTF-8'
+
+repositories {
+    mavenCentral()
+    maven { url "https://maven.aliyun.com/nexus/content/groups/public/" }
+    maven { url "https://oss.sonatype.org/service/local/staging/deploy/maven2" }
+    maven { url "https://oss.sonatype.org/content/repositories/snapshots" }
+}
+
+googleJavaFormat {
+    options style: 'AOSP'
+    source = sourceSets*.allJava
+    include '**/*.java'
+}
+
+def log4j_version = '2.22.1'
+List logger = [
+        "org.apache.logging.log4j:log4j-api:$log4j_version",
+        "org.apache.logging.log4j:log4j-core:$log4j_version",
+        "org.apache.logging.log4j:log4j-slf4j-impl:$log4j_version",
+        "org.apache.logging.log4j:log4j-web:$log4j_version"
+]
+
+// In this section you declare the dependencies for your production and test code
+dependencies {
+    implementation logger
+    //implementation 'org.fisco-bcos:solcJ:0.4.25.1'
+    //implementation 'org.fisco-bcos:solcJ:0.6.10.1'
+    //implementation 'org.fisco-bcos:solcJ:0.5.2.1'
+    implementation 'org.fisco-bcos:solcJ:1.0.0'
+
+    implementation ('org.fisco-bcos.java-sdk:fisco-bcos-java-sdk:3.8.0') {
+        exclude group: "org.slf4j"
+    }
+
+    implementation('org.fisco-bcos:evm-static-analysis:1.0.0') {
+		exclude group: "org.slf4j"
+    }
+    implementation('commons-cli:commons-cli:1.5.0')
+    implementation('org.jline:jline:3.21.0')
+    implementation('io.bretty:console-table-builder:1.2')
+    implementation('com.github.jsqlparser:jsqlparser:2.0')
+    implementation('org.fisco-bcos.code-generator:bcos-code-generator:1.6.0') {
+        exclude group: "org.fisco-bcos.java-sdk"
+        exclude group: "org.slf4j"
+    }
+    implementation ('com.fasterxml.jackson.core:jackson-databind:2.14.3'){
+        force true
+    }
+    testImplementation('com.github.stefanbirkner:system-rules:1.19.0')
+    testImplementation('junit:junit:4.13.2')
+}
+
+configurations.all {
+    resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+    exclude group: 'ch.qos.logback', module: 'logback-classic'
+    exclude group: 'io.zipkin.brave', module: 'brave-tests'
+}
+
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/main/java'
+        }
+        resources {
+            srcDir 'src/main/resources'
+        }
+    }
+    integrationTest {
+        java {
+            compileClasspath += main.output + test.output
+            runtimeClasspath += main.output + test.output
+            srcDir file('src/integration-test/java')
+        }
+        resources.srcDir file('src/integration-test/resources')
+    }
+}
+configurations {
+    integrationTestCompile.extendsFrom testImplementation
+    integrationTestRuntime.extendsFrom testRuntime
+}
+
+task integrationTest(type: Test) {
+    testClassesDirs = sourceSets.integrationTest.output.classesDirs
+    classpath = sourceSets.integrationTest.runtimeClasspath
+}
+
+jar {
+    destinationDir file('dist/apps')
+    archiveFileName=project.name + '.jar'
+    exclude '**/*.xml'
+    exclude '**/*.properties'
+    exclude '**/*.crt'
+    exclude '**/*.key'
+
+    doLast {
+        copy {
+            from configurations.runtimeClasspath
+            into 'dist/lib'
+        }
+        copy {
+            from file('src/integration-test/resources/clog.ini')
+            from file('src/integration-test/resources/config-example.toml')
+            from file('src/integration-test/resources/group-generate-config.toml')
+            from file('src/main/resources/log4j2.xml')
+            into 'dist/conf'
+        }
+        copy {
+            from file('tools/start.sh')
+            from file('tools/get_account.sh')
+            from file('tools/get_gm_account.sh')
+            from file('tools/contract2java.sh')
+            from file('tools/console.sh')
+            into 'dist/'
+        }
+        copy {
+            from file('src/main/resources/contract/')
+            into 'dist/contracts/'
+        }
+        new File('dist/contracts/console').mkdirs()
+        new File('dist/contracts/sdk').mkdirs()
+    }
+}
